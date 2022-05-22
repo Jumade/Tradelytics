@@ -97,7 +97,7 @@ def get_historical_price_day_from(coin: str, currency: str,
     while fromTs_i <= toTs_i:
         p = cryptocompare.get_historical_price_day(coin,currency, toTs=toTs_i)
         if p is None:
-            return None
+            return []
 
         validHist = [elem for elem in p if elem['time'] >= fromTs_i and elem['open'] != 0 and elem['close'] != 0]
         allHist = validHist + allHist
