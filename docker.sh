@@ -9,6 +9,7 @@ function init
 {
     docker-compose stop
     docker-compose down -v
+    docker volume create pgdata 
     docker-compose up -d  --build
 
     docker exec -it backend python /usr/src/tradelytics/manage.py recreate_db

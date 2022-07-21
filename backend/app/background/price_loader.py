@@ -16,20 +16,18 @@ import cryptocompare
 root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.append(root + '/python')
 
-import ccxt  
 from app.api.db_models.exchange import Exchange
 
 def load_daily_prices():
     quote_targets = ["BTC", "USD", "EUR"]
     first_trade = db.session.query(func.min(Trade.timestamp)).first()
-    print(first_trade[0])
+    if first_trade[0] == None:
+        return
+
     targets_pairs = quote_targets_pairs(quote_targets)
-    print(targets_pairs)
 
-    current_time = datetime.datetime.utcnow()
-
-    day_ago = current_time - datetime.timedelta(days=1)
-    scrape_candles_to_database(first_trade[0], targets_pairs)
+    
+    scrape_candles_to_database(first_trade[0]-(24*60*60*1000)+1, targets_pairs)
 
 def quote_targets_pairs(quote_targets):
     symboles = []
@@ -65,7 +63,8 @@ def quote_targets_pairs(quote_targets):
 
 
 def scrape_candles_to_database(since, targets_pairs):
-    since -= (24*60*60*1000)+1
+    current_time = datetime.datetime.utcnow()
+    day_ago = current_time - datetime.timedelta(days=1)
     for targets_pair in targets_pairs:
         targets_pair_split = targets_pair.split("/")
 
@@ -76,6 +75,10 @@ def scrape_candles_to_database(since, targets_pairs):
             
 
         from_date = since_max/1000
+        
+        if from_date > day_ago.timestamp():
+            print("nothing to update", from_date)
+            continue
         ohlcv = get_historical_price_day_from(targets_pair_split[0], targets_pair_split[1], fromTs=from_date)
         
         for row in ohlcv:

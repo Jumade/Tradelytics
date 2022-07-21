@@ -50,6 +50,7 @@ def load_trades():
 
                     print('------------------------------------------------------------------')
                     print('Fetching with params', params)
+                    time.sleep(6)
                     trades = exchange.fetch_my_trades(symbol, None, None, params)
                     print('Fetched', len(trades), 'trades')
                     if len(trades):

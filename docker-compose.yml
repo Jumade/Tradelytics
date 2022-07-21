@@ -45,7 +45,7 @@ services:
     ports:
       - 5432:5432
     volumes:
-      - ./postgres-data:/var/lib/postgresql/data
+      - pgdata:/var/lib/postgresql/data
     environment:
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
@@ -65,3 +65,7 @@ services:
       - REACT_APP_BACKEND_SERVICE_URL=http://localhost:5001
     depends_on:
       - backend
+
+volumes:
+  pgdata: 
+    external: true

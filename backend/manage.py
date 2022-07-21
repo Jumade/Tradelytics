@@ -45,7 +45,8 @@ def load_daily():
 
 @cli.command('run_schedule')
 def run_schedule():
-    schedule.every(5).minutes.do(background_job)
+    background_job()
+    schedule.every(1).minutes.do(background_job)
     
     while True:
         schedule.run_pending()

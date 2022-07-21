@@ -19,7 +19,7 @@ def process_all_trades():
         process_trades(user.id)
 
 def process_trades(user_id):
-    query = Trade.query.filter_by(processed=False, user_id=user_id)
+    query = Trade.query.filter_by(processed=False, user_id=user_id).order_by(Trade.timestamp.asc())
     trades = query.all()
     for trade in trades:
         if trade.side == "buy":
@@ -38,6 +38,8 @@ def open_position(trade):
 
 def close_position(baseAsset, amount, price, timestamp):
     next_open_position = Position.query.filter_by(baseAsset=baseAsset, closed=False).order_by(Position.open_timestamp.asc(), Position.split_count.asc()).first()
+    if next_open_position == None:
+        return
     if next_open_position.size == amount:
         next_open_position.closed = True
         next_open_position.close_price = price
