@@ -1,62 +1,62 @@
 
-import time
-import os
-import sys
 from app import db
 from app.api.db_models.trades import Trade
 from app.api.db_models.positions import Position
 from app.api.db_models.daily_price import DailyPrice
 from app.api.db_models.user import User
 
-import datetime 
-
-
-import ccxt  
-from app.api.db_models.exchange import Exchange
 def process_all_trades():
     users = User.query.all()
     for user in users:
         process_trades(user.id)
 
+def clean_positions(user_id):
+    query = Trade.query.filter_by(processed=False, user_id=user_id).order_by(Trade.timestamp.asc())
+    trades = query.all()
+    for trade in trades:
+        trades_by_baseAsset = Trade.query.filter_by(baseAsset=trade.baseAsset, user_id=user_id).order_by(Trade.timestamp.asc()).all()
+        for trade_by_baseAsset in trades_by_baseAsset:
+            trade_by_baseAsset.processed = False
+        db.session.query(Position).filter_by(baseAsset=trade.baseAsset, user_id=user_id).delete()
+    db.session.commit()
+
 def process_trades(user_id):
+    clean_positions(user_id)
+    
     query = Trade.query.filter_by(processed=False, user_id=user_id).order_by(Trade.timestamp.asc())
     trades = query.all()
     for trade in trades:
         if trade.side == "buy":
             open_position(trade)
         elif trade.side == "sell":
-            close_position(trade.baseAsset, trade.amount, trade.price, trade.timestamp)
+            close_position(trade.baseAsset, trade.amount, trade.price,  trade.quoteAsset, trade.timestamp)
         trade.processed = True
     db.session.commit()
 
 def open_position(trade):
-    position = Position(trade.user_id, trade.baseAsset, trade.quoteAsset, trade.amount, trade.timestamp, trade.price)
-    add_open_quote_prices(position)
+    position = Position(trade.user_id, trade.baseAsset, trade.amount, trade.timestamp)
+    add_open_quote_prices(position, trade.price,  trade.quoteAsset, trade.timestamp)
     db.session.add(position)
     db.session.commit()
 
 
-def close_position(baseAsset, amount, price, timestamp):
+def close_position(baseAsset, amount, price, quoteAsset, timestamp):
     next_open_position = Position.query.filter_by(baseAsset=baseAsset, closed=False).order_by(Position.open_timestamp.asc(), Position.split_count.asc()).first()
     if next_open_position == None:
         return
     if next_open_position.size == amount:
         next_open_position.closed = True
-        next_open_position.close_price = price
-        add_close_quote_prices(next_open_position, timestamp)
+        add_close_quote_prices(next_open_position, price, quoteAsset, timestamp)
     elif next_open_position.size > amount:
         size_diff = next_open_position.size -amount
         next_open_position.closed = True
-        next_open_position.close_price = price
-        add_close_quote_prices(next_open_position, timestamp)
+        add_close_quote_prices(next_open_position, price, quoteAsset, timestamp)
         next_open_position.size = amount
 
         new_position = Position(next_open_position.user_id, 
                             next_open_position.baseAsset, 
-                            next_open_position.quoteAsset, 
                             size_diff, 
-                            next_open_position.open_timestamp, 
-                            next_open_position.open_price)
+                            next_open_position.open_timestamp)
         new_position.open_price_btc = next_open_position.open_price_btc           
         new_position.open_price_usd = next_open_position.open_price_usd           
         new_position.open_price_eur = next_open_position.open_price_eur           
@@ -65,23 +65,22 @@ def close_position(baseAsset, amount, price, timestamp):
     
     elif next_open_position.size < amount:
         next_open_position.closed = True
-        next_open_position.close_price = price
-        add_close_quote_prices(next_open_position, timestamp)
+        add_close_quote_prices(next_open_position, price, quoteAsset, timestamp)
         size_diff = amount -next_open_position.size
         db.session.commit()
 
-        close_position(baseAsset, size_diff, price, timestamp)
+        close_position(baseAsset, size_diff, price, quoteAsset, timestamp)
     db.session.commit()
 
-def add_open_quote_prices(position):
-    position.open_price_btc = position.open_price * get_quote_factor(position.quoteAsset, "BTC", position.open_timestamp/1000)
-    position.open_price_usd = position.open_price * get_quote_factor(position.quoteAsset, "USD", position.open_timestamp/1000)
-    position.open_price_eur = position.open_price * get_quote_factor(position.quoteAsset, "EUR", position.open_timestamp/1000)
+def add_open_quote_prices(position, open_price, quoteAsset, open_timestamp):
+    position.open_price_btc = open_price * get_quote_factor(quoteAsset, "BTC", open_timestamp/1000)
+    position.open_price_usd = open_price * get_quote_factor(quoteAsset, "USD", open_timestamp/1000)
+    position.open_price_eur = open_price * get_quote_factor(quoteAsset, "EUR", open_timestamp/1000)
 
-def add_close_quote_prices(position, timestamp):
-    position.close_price_btc = position.close_price * get_quote_factor(position.quoteAsset, "BTC", timestamp/1000)
-    position.close_price_usd = position.close_price * get_quote_factor(position.quoteAsset, "USD", timestamp/1000)
-    position.close_price_eur = position.close_price * get_quote_factor(position.quoteAsset, "EUR", timestamp/1000)
+def add_close_quote_prices(position, close_price, quoteAsset, timestamp):
+    position.close_price_btc = close_price * get_quote_factor(quoteAsset, "BTC", timestamp/1000)
+    position.close_price_usd = close_price * get_quote_factor(quoteAsset, "USD", timestamp/1000)
+    position.close_price_eur = close_price * get_quote_factor(quoteAsset, "EUR", timestamp/1000)
 
 def get_quote_factor(quote, target_quote, timestamp):
     if quote == target_quote:

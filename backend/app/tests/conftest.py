@@ -1,4 +1,5 @@
 
+from app.api.db_models.positions import Position
 import pytest
 
 from app import create_app, db
@@ -71,4 +72,17 @@ def add_daily_price():
         return price
 
     return _add_daily_price
+
+@pytest.fixture(scope="module")
+def add_position():
+    def _add_position(user_id, baseAsset, size, open_timestamp, open_price, close_price, closed):
+        position = Position( user_id, baseAsset, size, open_timestamp)
+        position.open_price_btc = open_price
+        position.close_price_btc = close_price
+        position.closed = closed
+        db.session.add(position)
+        db.session.commit()
+        return position
+
+    return _add_position
 

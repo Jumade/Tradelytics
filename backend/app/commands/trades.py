@@ -24,31 +24,38 @@ def get_positions_by_user(id):
     query = Position.query.filter_by(user_id=id)
     return pd.read_sql(query.statement, query.session.bind)
 
-def build_position_data(user_id, target_quote):
-    positions_df = get_positions_by_user(user_id)
+def build_grouped_positions(positions_df, target_quote):
     positions_df["open_cost"] = positions_df["open_price_{}".format(target_quote.lower())] * positions_df["size"]
     positions_df["close_cost"] = positions_df["close_price_{}".format(target_quote.lower())] * positions_df["size"]
     positions_df["unrealized_open_cost"] = positions_df[((positions_df["closed"] == False))]["open_cost"]
+    positions_df["realized_open_cost"] = positions_df[((positions_df["closed"] == True))]["open_cost"]
 
-    load_current_price(positions_df, target_quote)
     positions_df["unrealized_close_cost"] = positions_df[((positions_df["closed"] == False))]["current_price"] * positions_df["size"]
  
     positions_df["realized_pl"] = positions_df["close_cost"] - positions_df["open_cost"]
     positions_df["unrealized_pl"] = positions_df["unrealized_close_cost"] - positions_df["unrealized_open_cost"]
-
-
-
+    
     f = dict.fromkeys(positions_df, 'sum')
-    f.update(dict.fromkeys(positions_df.columns[positions_df.dtypes.eq(object)], 'first'))
+    f["baseAsset"] = "first"
+    f["open_timestamp"] = "first"
     positions_df = positions_df.groupby(["baseAsset"], as_index=False).agg(f)
 
     
-    positions_df["realized_pl_perc"] = positions_df["realized_pl"] / positions_df["open_cost"]
+    positions_df["realized_pl_perc"] = positions_df["realized_pl"] / positions_df["realized_open_cost"]
     positions_df["unrealized_pl_perc"] = positions_df["unrealized_pl"] / positions_df["unrealized_open_cost"]
     positions_df["total_pl"] = positions_df["unrealized_pl"] + positions_df["realized_pl"]
-    positions_df["total_pl_perc"] = positions_df["total_pl"] / (positions_df["open_cost"] + positions_df["unrealized_open_cost"])
-
+    positions_df["total_pl_perc"] = positions_df["total_pl"] / (positions_df["open_cost"])
+    positions_df = positions_df.fillna(0)
     positions_df.sort_values(by=['unrealized_open_cost'], inplace=True, ascending=False)
+
+    return positions_df
+
+def build_position_data(user_id, target_quote):
+    positions_df = get_positions_by_user(user_id)
+    load_current_price(positions_df, target_quote)
+    
+    positions_df = build_grouped_positions(positions_df, target_quote)
+   
     return positions_df.to_dict('records')
 
 def load_current_price(positions_df, target_quote):
