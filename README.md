@@ -1,5 +1,7 @@
 # Tradelytics
 
+<img src="./doc/positions.png" alt="Tradelytics Positions" width="250"/>
+
 # Usage  
 
 - Make sure you have Docker installed
