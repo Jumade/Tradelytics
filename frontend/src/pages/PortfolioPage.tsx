@@ -43,7 +43,7 @@ function PortfolioPage() {
                     )}
                     <div>
                         {portfolio.contents.coins.map((coinData) => (
-                            <CoinListComponent coin={coinData} />
+                            <CoinListComponent coin={coinData} quoteAsset={settings?.quote_asset_setting}/>
                         ))}
                     </div>
                 </div>
